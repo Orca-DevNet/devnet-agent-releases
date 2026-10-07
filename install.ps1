@@ -2,7 +2,10 @@
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Orca-DevNet/devnet-agent-releases/main/install.ps1))) -Code <join code>"
 #
-# The join code comes from an admin (Whiteboard, Admin, Machines). It works once and expires.
+# The join code comes from an admin (Whiteboard, Admin, Machines). It works once and expires. To keep it off the command
+# line altogether, set it in the environment first and leave -Code off:
+#   $env:DEVNET_JOIN_CODE = '<join code>'; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Orca-DevNet/devnet-agent-releases/main/install.ps1)))
+# Either way, the agent itself is given the code only through its environment, never as an argument.
 #
 # What this does, in order, and nothing else:
 #   1. checks git is installed, and offers to install it with winget if not (the agent needs git; it needs nothing else);
@@ -17,7 +20,7 @@
 # Options: -Dir <folder>   -Version <tag>   -Yes (do not ask before installing git)   -Force (replace an existing join)
 #          -NoService (join but do not install the logon task)
 param(
-	[Parameter(Mandatory = $true)][string]$Code,
+	[string]$Code = $env:DEVNET_JOIN_CODE,   # or set $env:DEVNET_JOIN_CODE first and leave -Code off: then it is on no command line
 	[string]$Dir = (Join-Path $env:USERPROFILE 'devnet-agent'),
 	[string]$Version = 'latest',
 	[switch]$Yes,
@@ -40,6 +43,7 @@ function Say($m) { Write-Host "==> $m" -ForegroundColor Cyan }
 function Die($m) { Write-Host "ERROR: $m" -ForegroundColor Red; exit 1 }
 
 if (-not [Environment]::Is64BitOperatingSystem) { Die 'This needs 64-bit Windows.' }
+if (-not $Code) { Die 'This needs the join code an admin made on the Whiteboard: -Code <code> (or set $env:DEVNET_JOIN_CODE first).' }
 if (-not $Code.StartsWith('dnj1_')) { Die 'That is not a join code: it should start dnj1_ (copy the whole line from the Whiteboard).' }
 
 # ---- 1. git ----------------------------------------------------------------------------------------------
