@@ -18,14 +18,18 @@
 # rights, does not touch your own Tailscale, and does not add anything to your PATH.
 #
 # Options: -Dir <folder>   -Version <tag>   -Yes (do not ask before installing git)   -Force (replace an existing join)
-#          -NoService (join but do not install the logon task)
+#          -NoService (join but do not install the logon task)   -Boot (start when the PC starts, before anyone logs on, for a
+#          PC that is on all the time with nobody at it: needs an administrator PowerShell, and also adds the firewall rule)
+# Run from an administrator PowerShell the installer also adds a Windows Firewall rule for the agent (so a PC nobody sits at does
+# not leave the firewall's question unanswered, which would put the agent on a slower relay); otherwise it prints the one command.
 param(
 	[string]$Code = $env:DEVNET_JOIN_CODE,   # or set $env:DEVNET_JOIN_CODE first and leave -Code off: then it is on no command line
 	[string]$Dir = (Join-Path $env:USERPROFILE 'devnet-agent'),
 	[string]$Version = 'latest',
 	[switch]$Yes,
 	[switch]$Force,
-	[switch]$NoService
+	[switch]$NoService,
+	[switch]$Boot
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # the progress bar makes Invoke-WebRequest very slow in Windows PowerShell
@@ -105,7 +109,9 @@ try {
 # ---- 4. start at every logon -------------------------------------------------------------------------------
 if (-not $NoService) {
 	Say 'Installing the logon task...'
-	& $Exe --config $Cfg service install
+	$svcArgs = @('--config', $Cfg, 'service', 'install')
+	if ($Boot) { $svcArgs += '--boot' }
+	& $Exe @svcArgs
 	if ($LASTEXITCODE -ne 0) { Die ('The agent joined but the logon task could not be installed (see above). Run:  & "' + $Exe + '" --config "' + $Cfg + '" service install') }
 	Start-Sleep -Seconds 8
 	& $Exe --config $Cfg service status
