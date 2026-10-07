@@ -20,6 +20,8 @@
 # Options: -Dir <folder>   -Version <tag>   -Yes (do not ask before installing git)   -Force (replace an existing join)
 #          -NoService (join but do not install the logon task)   -Boot (start when the PC starts, before anyone logs on, for a
 #          PC that is on all the time with nobody at it: needs an administrator PowerShell, and also adds the firewall rule)
+#          -Tray (also install the little tray icon: green when idle, blue working, amber paused; Pause now / Pause after this job /
+#          Resume / Open the Whiteboard. For a PC that is also somebody's gaming PC. It starts at logon from your Startup folder.)
 # Run from an administrator PowerShell the installer also adds a Windows Firewall rule for the agent (so a PC nobody sits at does
 # not leave the firewall's question unanswered, which would put the agent on a slower relay); otherwise it prints the one command.
 param(
@@ -29,7 +31,8 @@ param(
 	[switch]$Yes,
 	[switch]$Force,
 	[switch]$NoService,
-	[switch]$Boot
+	[switch]$Boot,
+	[switch]$Tray
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # the progress bar makes Invoke-WebRequest very slow in Windows PowerShell
@@ -115,6 +118,37 @@ if (-not $NoService) {
 	if ($LASTEXITCODE -ne 0) { Die ('The agent joined but the logon task could not be installed (see above). Run:  & "' + $Exe + '" --config "' + $Cfg + '" service install') }
 	Start-Sleep -Seconds 8
 	& $Exe --config $Cfg service status
+}
+
+# ---- 5. the tray icon, if asked for ---------------------------------------------------------------------------
+if ($Tray) {
+	$TrayAsset = 'devnet-tray-windows-amd64.exe'
+	$TrayExe = Join-Path $Dir 'devnet-tray.exe'
+	$TrayNew = Join-Path $Dir 'devnet-tray.exe.new'
+	try {
+		Say 'Downloading the tray icon'
+		Invoke-WebRequest -UseBasicParsing -Uri "$Base/$TrayAsset" -OutFile $TrayNew
+		$tline = ($sums -split '\r?\n') | Where-Object { $_ -match ('\s\*?' + [regex]::Escape($TrayAsset) + '\s*$') } | Select-Object -First 1
+		if (-not $tline) { throw "SHA256SUMS has no entry for $TrayAsset (this release has no tray icon)." }
+		$twant = ($tline.Trim() -split '\s+')[0].ToLower()
+		$tgot = (Get-FileHash -Algorithm SHA256 -Path $TrayNew).Hash.ToLower()
+		if ($tgot -ne $twant) { throw "The tray icon's SHA256 ($tgot) does not match SHA256SUMS ($twant). It was NOT installed." }
+		Get-Process devnet-tray -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+		Move-Item -Force -Path $TrayNew -Destination $TrayExe
+		$lnk = Join-Path ([Environment]::GetFolderPath('Startup')) 'DevNet tray.lnk'
+		$sh = New-Object -ComObject WScript.Shell
+		$sc = $sh.CreateShortcut($lnk)
+		$sc.TargetPath = $TrayExe
+		$sc.Arguments = '--config "' + $Cfg + '"'
+		$sc.WorkingDirectory = $Dir
+		$sc.Description = 'DevNet agent tray icon'
+		$sc.Save()
+		Start-Process -FilePath $TrayExe -ArgumentList ('--config "' + $Cfg + '"') -WorkingDirectory $Dir
+		Say "Tray icon installed: it starts at logon from $lnk (look for the dot in the notification area; it may be under the ^ arrow)."
+	} catch {
+		Remove-Item $TrayNew -Force -ErrorAction SilentlyContinue
+		Write-Host "The tray icon was not installed: $($_.Exception.Message)  (The agent itself is fine; `devnet-agent pause` and `resume` work from any window.)" -ForegroundColor Yellow
+	}
 }
 
 Write-Host ''
