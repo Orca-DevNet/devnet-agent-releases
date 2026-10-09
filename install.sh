@@ -1,9 +1,9 @@
 #!/bin/sh
-# Adds this Linux or macOS machine to the DevNet Whiteboard.
+# Adds this Linux or macOS machine to the DevNet Board.
 #
 #   curl -fsSL https://raw.githubusercontent.com/Orca-DevNet/devnet-agent-releases/main/install.sh | sh -s -- <join code>
 #
-# The join code comes from an admin (Whiteboard, Admin, Machines). It works once and expires.
+# The join code comes from an admin (Board, Admin, Machines). It works once and expires.
 #
 # What this does, in order, and nothing else:
 #   1. checks git is installed, and offers to install it with the system's package manager if not (the agent needs
@@ -40,8 +40,8 @@ done
 say() { printf '==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
-[ -n "$code" ] || die "needs the join code an admin made on the Whiteboard: sh -s -- <join code>"
-case "$code" in dnj1_*) ;; *) die "that is not a join code: it should start dnj1_ (copy the whole line from the Whiteboard)" ;; esac
+[ -n "$code" ] || die "needs the join code an admin made on the Board: sh -s -- <join code>"
+case "$code" in dnj1_*) ;; *) die "that is not a join code: it should start dnj1_ (copy the whole line from the Board)" ;; esac
 
 # ---- the machine ------------------------------------------------------------------------------------------
 # DEVNET_OS and DEVNET_ARCH are for testing this script; DEVNET_RELEASES_BASE points it at a local server.
@@ -110,7 +110,7 @@ mv -f "$tmp/$asset" "$exe"
 
 # ---- 3. join ---------------------------------------------------------------------------------------------
 # The code goes in the environment, not on a command line, so it is not in any process list.
-say "Joining the Whiteboard..."
+say "Joining the Board..."
 if [ "$force" -eq 1 ]; then DEVNET_JOIN_CODE="$code" "$exe" --config "$cfg" join --force || die "the join did not work (see above)"
 else DEVNET_JOIN_CODE="$code" "$exe" --config "$cfg" join || die "the join did not work (see above)"; fi
 
@@ -123,7 +123,7 @@ if [ "$service" -eq 1 ]; then
 fi
 
 echo
-echo "Done. This machine is on the Whiteboard (Machines). It only reports in until you turn jobs on."
+echo "Done. This machine is on the Board (Machines). It only reports in until you turn jobs on."
 echo "  Agent:  $exe"
 echo "  Config: $cfg   (private to you; it holds this machine's key)"
 echo "  Log:    $dir/agent.log"

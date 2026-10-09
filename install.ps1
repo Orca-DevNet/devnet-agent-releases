@@ -1,8 +1,8 @@
-# Adds this Windows machine to the DevNet Whiteboard.
+# Adds this Windows machine to the DevNet Board.
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Orca-DevNet/devnet-agent-releases/main/install.ps1))) -Code <join code>"
 #
-# The join code comes from an admin (Whiteboard, Admin, Machines). It works once and expires. To keep it off the command
+# The join code comes from an admin (Board, Admin, Machines). It works once and expires. To keep it off the command
 # line altogether, set it in the environment first and leave -Code off:
 #   $env:DEVNET_JOIN_CODE = '<join code>'; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Orca-DevNet/devnet-agent-releases/main/install.ps1)))
 # Either way, the agent itself is given the code only through its environment, never as an argument.
@@ -21,7 +21,7 @@
 #          -NoService (join but do not install the logon task)   -Boot (start when the PC starts, before anyone logs on, for a
 #          PC that is on all the time with nobody at it: needs an administrator PowerShell, and also adds the firewall rule)
 #          -Tray (also install the little tray icon: green when idle, blue working, amber paused; Pause now / Pause after this job /
-#          Resume / Open the Whiteboard. For a PC that is also somebody's gaming PC. It starts at logon from your Startup folder.)
+#          Resume / Open the Board. For a PC that is also somebody's gaming PC. It starts at logon from your Startup folder.)
 # Run from an administrator PowerShell the installer also adds a Windows Firewall rule for the agent (so a PC nobody sits at does
 # not leave the firewall's question unanswered, which would put the agent on a slower relay); otherwise it prints the one command.
 param(
@@ -50,8 +50,8 @@ function Say($m) { Write-Host "==> $m" -ForegroundColor Cyan }
 function Die($m) { Write-Host "ERROR: $m" -ForegroundColor Red; exit 1 }
 
 if (-not [Environment]::Is64BitOperatingSystem) { Die 'This needs 64-bit Windows.' }
-if (-not $Code) { Die 'This needs the join code an admin made on the Whiteboard: -Code <code> (or set $env:DEVNET_JOIN_CODE first).' }
-if (-not $Code.StartsWith('dnj1_')) { Die 'That is not a join code: it should start dnj1_ (copy the whole line from the Whiteboard).' }
+if (-not $Code) { Die 'This needs the join code an admin made on the Board: -Code <code> (or set $env:DEVNET_JOIN_CODE first).' }
+if (-not $Code.StartsWith('dnj1_')) { Die 'That is not a join code: it should start dnj1_ (copy the whole line from the Board).' }
 
 # ---- 1. git ----------------------------------------------------------------------------------------------
 function Refresh-Path { $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User') }
@@ -100,7 +100,7 @@ Move-Item -Force -Path $New -Destination $Exe
 
 # ---- 3. join ---------------------------------------------------------------------------------------------
 # The code goes in the environment, not on a command line, so it is not in any process list.
-Say 'Joining the Whiteboard...'
+Say 'Joining the Board...'
 $env:DEVNET_JOIN_CODE = $Code
 try {
 	$joinArgs = @('--config', $Cfg, 'join')
@@ -152,7 +152,7 @@ if ($Tray) {
 }
 
 Write-Host ''
-Write-Host 'Done. This machine is on the Whiteboard (Machines). It only reports in until you turn jobs on.' -ForegroundColor Green
+Write-Host 'Done. This machine is on the Board (Machines). It only reports in until you turn jobs on.' -ForegroundColor Green
 Write-Host "  Agent:  $Exe"
 Write-Host "  Config: $Cfg   (private to you; it holds this machine's key)"
 Write-Host "  Log:    $(Join-Path $Dir 'agent.log')"

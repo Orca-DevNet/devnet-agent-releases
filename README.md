@@ -1,6 +1,6 @@
 # devnet-agent-releases
 
-The downloads for **devnet-agent**, the small program that puts a machine on Orca-DevNet's Whiteboard. This
+The downloads for **devnet-agent**, the small program that puts a machine on Orca-DevNet's Board. This
 repository holds **only** release binaries (with `SHA256SUMS`) and the two install scripts. It has no source code and
 no secrets; the source is private.
 
@@ -26,12 +26,12 @@ curl -fsSL https://raw.githubusercontent.com/Orca-DevNet/devnet-agent-releases/m
    `SHA256SUMS`**. If they do not match it stops and installs nothing.
 3. Runs `devnet-agent join`, which trades your join code for **this machine's own key** and writes its config.
 4. Installs a logon task (Windows), a systemd user service (Linux) or a launch agent (macOS) that starts the agent
-   when you log in. The agent only **reports in** (the Whiteboard shows the machine online and what it has: git, a
+   when you log in. The agent only **reports in** (the Board shows the machine online and what it has: git, a
    GPU, AI command-line tools if you have them). **It does no jobs until you turn them on.**
 
 Everything goes in one folder of yours (`%USERPROFILE%\devnet-agent` or `~/devnet-agent`). No administrator rights,
 nothing added to your PATH, and your own Tailscale (if you have one) is not touched: the agent carries a small
-private node of its own, only for talking to the Whiteboard.
+private node of its own, only for talking to the Board.
 
 Read the scripts before you run them: [`install.ps1`](install.ps1), [`install.sh`](install.sh). They are short.
 
@@ -56,4 +56,4 @@ yet, so Windows may ask you to confirm the first run if you download one by hand
 ## Removing it
 
 `devnet-agent --config <the config> service uninstall`, then delete the folder. Ask an admin to remove the machine from
-the Whiteboard (Admin, Machines) if it is not coming back.
+the Board (Admin, Machines) if it is not coming back.
