@@ -10,7 +10,8 @@
 # What this does, in order, and nothing else:
 #   1. checks git is installed, and offers to install it with winget if not (the agent needs git; it needs nothing else);
 #   2. downloads the agent for Windows from this repository's latest release and SHA256SUMS, and REFUSES to go on
-#      if the checksum does not match;
+#      if SHA256SUMS.sig is not a signature of it by one of the admin keys listed in this script (needs ssh-keygen,
+#      the OpenSSH client that ships with Windows), or if the checksum does not match;
 #   3. runs `devnet-agent join`, which gets this machine its own key and writes its config;
 #   4. installs a scheduled task that starts the agent at every logon with no window (the agent only reports in;
 #      jobs stay off until you turn them on).
@@ -85,7 +86,33 @@ try {
 	$sums = [IO.File]::ReadAllText($SumsFile)
 	Remove-Item $SumsFile -Force -ErrorAction SilentlyContinue
 	Invoke-WebRequest -UseBasicParsing -Uri "$Base/$Asset" -OutFile $New
+    [IO.File]::WriteAllText((Join-Path $Dir 'SHA256SUMS.check'), $sums, (New-Object Text.UTF8Encoding($false)))
+    try { Invoke-WebRequest -UseBasicParsing -Uri "$Base/SHA256SUMS.sig" -OutFile (Join-Path $Dir 'SHA256SUMS.sig.check') } catch { Die "Could not download SHA256SUMS.sig ($($_.Exception.Message)): this release is not signed, so it is not installed." }
 } catch { Die "Could not download the agent: $($_.Exception.Message)" }
+
+# The release must be signed by an admin key listed here (the same list is built into the agent). DEVNET_ALLOWED_SIGNERS_FILE is for testing this script.
+$SumsPath = Join-Path $Dir 'SHA256SUMS.check'
+$SigPath = Join-Path $Dir 'SHA256SUMS.sig.check'
+$AllowedPath = Join-Path $Dir 'allowed_signers.check'
+if ($env:DEVNET_ALLOWED_SIGNERS_FILE) { Copy-Item -Force $env:DEVNET_ALLOWED_SIGNERS_FILE $AllowedPath } else {
+    $allowedText = @'
+# BEGIN allowed_signers
+admin namespaces="devnet-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKkiyZsc3h3tSKkMhE6qxp+UaMRVtDV8S1OP4A8Ptyku
+# END allowed_signers
+'@
+    [IO.File]::WriteAllText($AllowedPath, ($allowedText -replace "`r", '') + "`n", (New-Object Text.UTF8Encoding($false)))
+}
+$sshKeygen = Get-Command ssh-keygen -ErrorAction SilentlyContinue
+$verified = $false
+if ($sshKeygen) {
+    # cmd handles the "< file" so SHA256SUMS goes in byte for byte
+    & cmd.exe /c ('""{0}" -Y verify -f "{1}" -I admin -n devnet-release -s "{2}" < "{3}" > nul 2>&1"' -f $sshKeygen.Source, $AllowedPath, $SigPath, $SumsPath)
+    $verified = ($LASTEXITCODE -eq 0)
+}
+Remove-Item $SumsPath, $SigPath, $AllowedPath -Force -ErrorAction SilentlyContinue
+if (-not $sshKeygen) { Remove-Item $New -Force -ErrorAction SilentlyContinue; Die 'This needs ssh-keygen (the OpenSSH client: Settings, Apps, Optional features) to check the release''s signature.' }
+if (-not $verified) { Remove-Item $New -Force -ErrorAction SilentlyContinue; Die 'SHA256SUMS is not signed by a trusted admin key (or is not signed at all). Nothing was installed. Do not run it; tell an admin.' }
+Say 'Signature is by a trusted admin key.'
 $line = ($sums -split '\r?\n') | Where-Object { $_ -match ('\s\*?' + [regex]::Escape($Asset) + '\s*$') } | Select-Object -First 1
 if (-not $line) { Remove-Item $New -Force -ErrorAction SilentlyContinue; Die "SHA256SUMS has no entry for $Asset." }
 $want = ($line.Trim() -split '\s+')[0].ToLower()
@@ -154,7 +181,7 @@ if (-not $NoTray) {
 }
 
 Write-Host ''
-Write-Host 'Done. This machine is on the Board (Machines). It only reports in until you turn jobs on.' -ForegroundColor Green
+Write-Host 'Done. This machine is on the Board (Machines). It takes jobs within its budgets until paused (tray, Board, or devnet-agent pause).' -ForegroundColor Green
 Write-Host "  Agent:  $Exe"
 Write-Host "  Config: $Cfg   (private to you; it holds this machine's key)"
 Write-Host "  Log:    $(Join-Path $Dir 'agent.log')"

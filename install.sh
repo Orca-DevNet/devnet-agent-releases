@@ -9,7 +9,8 @@
 #   1. checks git is installed, and offers to install it with the system's package manager if not (the agent needs
 #      git; it needs nothing else);
 #   2. downloads the agent for this OS and CPU from this repository's latest release and SHA256SUMS, and REFUSES to
-#      go on if the checksum does not match;
+#      go on if SHA256SUMS.sig is not a signature of it by one of the admin keys listed in this script (needs ssh-keygen),
+#      or if the checksum does not match;
 #   3. runs `devnet-agent join`, which gets this machine its own key and writes its config;
 #   4. installs a systemd user service (Linux) or a launch agent (macOS) that starts the agent at login (the agent
 #      only reports in; jobs stay off until you turn them on);
@@ -35,7 +36,7 @@ while [ $# -gt 0 ]; do
 		--force) force=1; shift ;;
 		--no-service) service=0; shift ;;
 		--no-tray) tray=0; shift ;;
-		-h|--help) sed -n '2,25p' "$0" 2>/dev/null || true; exit 0 ;;
+		-h|--help) sed -n '2,26p' "$0" 2>/dev/null || true; exit 0 ;;
 		-*) echo "ERROR: unknown option $1" >&2; exit 2 ;;
 		*) if [ -z "$code" ]; then code="$1"; else echo "ERROR: one join code only (is it split across two words?)" >&2; exit 2; fi; shift ;;
 	esac
@@ -98,6 +99,19 @@ tmp="$(mktemp -d 2>/dev/null || mktemp -d -t devnet)"
 trap 'rm -rf "$tmp"' EXIT INT TERM
 say "Downloading the agent ($version) from $base"
 fetch "$base/SHA256SUMS" "$tmp/SHA256SUMS" || die "could not download SHA256SUMS from $base"
+fetch "$base/SHA256SUMS.sig" "$tmp/SHA256SUMS.sig" || die "could not download SHA256SUMS.sig from $base: this release is not signed, so it is not installed"
+# The release must be signed by an admin key listed here (the same list is built into the agent). DEVNET_ALLOWED_SIGNERS_FILE is for testing this script.
+command -v ssh-keygen >/dev/null 2>&1 || die "needs ssh-keygen (OpenSSH) to check the release's signature"
+signers="$tmp/allowed_signers"
+if [ -n "${DEVNET_ALLOWED_SIGNERS_FILE:-}" ]; then cp "$DEVNET_ALLOWED_SIGNERS_FILE" "$signers"; else
+cat >"$signers" <<'EOF'
+# BEGIN allowed_signers
+admin namespaces="devnet-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKkiyZsc3h3tSKkMhE6qxp+UaMRVtDV8S1OP4A8Ptyku
+# END allowed_signers
+EOF
+fi
+ssh-keygen -Y verify -f "$signers" -I admin -n devnet-release -s "$tmp/SHA256SUMS.sig" <"$tmp/SHA256SUMS" >/dev/null 2>&1 || die "SHA256SUMS is not signed by a trusted admin key (or is not signed at all). Nothing was installed. Do not run it; tell an admin."
+say "Signature is by a trusted admin key."
 fetch "$base/$asset" "$tmp/$asset" || die "could not download $asset from $base"
 want="$(awk -v a="$asset" '{n=$2; sub(/^\*/,"",n); if (n==a) {print tolower($1); exit}}' "$tmp/SHA256SUMS")"
 [ -n "$want" ] || die "SHA256SUMS has no entry for $asset"
@@ -167,7 +181,7 @@ fi
 
 echo
 [ -z "$tray_note" ] || echo "$tray_note"
-echo "Done. This machine is on the Board (Machines). It only reports in until you turn jobs on."
+echo "Done. This machine is on the Board (Machines). It takes jobs within its budgets until paused (tray, Board, or devnet-agent pause)."
 echo "  Agent:  $exe"
 echo "  Config: $cfg   (private to you; it holds this machine's key)"
 echo "  Log:    $dir/agent.log"

@@ -22,12 +22,15 @@ curl -fsSL https://raw.githubusercontent.com/Orca-DevNet/devnet-agent-releases/m
 ## What the line does
 
 1. Checks **git** is installed and offers to install it (the agent needs git and nothing else; it does not need `gh`).
-2. Downloads the agent for your OS and CPU from the latest release here, and **checks its SHA256 against
-   `SHA256SUMS`**. If they do not match it stops and installs nothing.
+2. Downloads the agent for your OS and CPU from the latest release here, **checks that `SHA256SUMS.sig` is a
+   signature of `SHA256SUMS` by one of the DevNet admins' keys listed in the script** (it uses `ssh-keygen`, the
+   OpenSSH client that comes with Windows 10/11, macOS and most Linux), and **checks the agent's SHA256 against
+   `SHA256SUMS`**. If the signature is missing or not by a listed key, or the hashes do not match, it stops and
+   installs nothing.
 3. Runs `devnet-agent join`, which trades your join code for **this machine's own key** and writes its config.
 4. Installs a logon task (Windows), a systemd user service (Linux) or a launch agent (macOS) that starts the agent
    when you log in. The agent only **reports in** (the Board shows the machine online and what it has: git, a
-   GPU, AI command-line tools if you have them). **It does no jobs until you turn them on.**
+   GPU, AI command-line tools if you have them). **It takes jobs within your plans' budgets (60% of a 5-hour window, 70% of a week) until you pause it.**
 
 5. Installs the **tray icon** (`devnet-tray`) the same way, with the same checksum check, and starts it at login:
    a Startup shortcut (Windows), a launch agent (macOS) or an autostart entry (Linux). It is a dot that is green
@@ -57,6 +60,7 @@ expired: ask the admin for a new one.
 | `devnet-agent-darwin-arm64`, `devnet-agent-darwin-amd64` | macOS (Apple silicon, Intel) |
 | `devnet-tray-windows-amd64.exe`, `devnet-tray-linux-<cpu>`, `devnet-tray-darwin-<cpu>` | the tray icon, where built |
 | `SHA256SUMS` | the SHA256 of each file above, to check a download |
+| `SHA256SUMS.sig` | an admin's SSH signature of `SHA256SUMS` (namespace `devnet-release`); the keys that count are listed in the install scripts |
 
 To check one by hand: `sha256sum -c SHA256SUMS --ignore-missing` (Linux), `shasum -a 256 -c SHA256SUMS --ignore-missing`
 (macOS), or `(Get-FileHash <file> -Algorithm SHA256).Hash` and compare (Windows). The binaries are not code-signed
