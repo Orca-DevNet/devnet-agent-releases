@@ -29,6 +29,14 @@ curl -fsSL https://raw.githubusercontent.com/Orca-DevNet/devnet-agent-releases/m
    when you log in. The agent only **reports in** (the Board shows the machine online and what it has: git, a
    GPU, AI command-line tools if you have them). **It does no jobs until you turn them on.**
 
+5. Installs the **tray icon** (`devnet-tray`) the same way, with the same checksum check, and starts it at login:
+   a Startup shortcut (Windows), a launch agent (macOS) or an autostart entry (Linux). It is a dot that is green
+   when all is well; it turns into a red X (something failed), a ! (something needs you) or a green tick (a vote on
+   the Board is waiting), and its menu has pause, resume, usage and game mode. If a release has no tray for your
+   system, or its checksum does not match, the icon is skipped and the agent is still installed. To skip it on
+   purpose: add `-NoTray` (Windows) or `--no-tray` (Linux, macOS). On Linux a desktop with no tray (plain GNOME)
+   needs the AppIndicator extension; `devnet-agent status` shows the same facts anywhere.
+
 Everything goes in one folder of yours (`%USERPROFILE%\devnet-agent` or `~/devnet-agent`). No administrator rights,
 nothing added to your PATH, and your own Tailscale (if you have one) is not touched: the agent carries a small
 private node of its own, only for talking to the Board.
@@ -47,6 +55,7 @@ expired: ask the admin for a new one.
 | `devnet-agent-windows-amd64.exe` | Windows, 64-bit |
 | `devnet-agent-linux-amd64`, `devnet-agent-linux-arm64` | Linux |
 | `devnet-agent-darwin-arm64`, `devnet-agent-darwin-amd64` | macOS (Apple silicon, Intel) |
+| `devnet-tray-windows-amd64.exe`, `devnet-tray-linux-<cpu>`, `devnet-tray-darwin-<cpu>` | the tray icon, where built |
 | `SHA256SUMS` | the SHA256 of each file above, to check a download |
 
 To check one by hand: `sha256sum -c SHA256SUMS --ignore-missing` (Linux), `shasum -a 256 -c SHA256SUMS --ignore-missing`

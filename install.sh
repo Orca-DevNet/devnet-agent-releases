@@ -12,18 +12,21 @@
 #      go on if the checksum does not match;
 #   3. runs `devnet-agent join`, which gets this machine its own key and writes its config;
 #   4. installs a systemd user service (Linux) or a launch agent (macOS) that starts the agent at login (the agent
-#      only reports in; jobs stay off until you turn them on).
+#      only reports in; jobs stay off until you turn them on);
+#   5. installs the tray icon the same way (checked, and skipped with a note if the release has none).
 # It puts everything in one folder of your own (default ~/devnet-agent). It does not need root (only to install git,
 # if you say yes), does not touch your own Tailscale, and does not change your PATH.
 #
 # Options: --dir <folder>  --version <tag>  --yes (do not ask before installing git)  --force (replace an existing join)
-#          --no-service (join but do not install the service)
+#          --no-service (join but do not install the service)  --no-tray (do not install the tray icon, which otherwise
+#          is installed, checked against SHA256SUMS like the agent, and started at login; it shows a red X, a ! or a green
+#          tick when something wants you)
 set -eu
 
 code="${DEVNET_JOIN_CODE:-}"
 dir="${DEVNET_DIR:-$HOME/devnet-agent}"
 version="latest"
-yes=0 force=0 service=1
+yes=0 force=0 service=1 tray=1
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--dir) dir="$2"; shift 2 ;;
@@ -31,7 +34,8 @@ while [ $# -gt 0 ]; do
 		--yes|-y) yes=1; shift ;;
 		--force) force=1; shift ;;
 		--no-service) service=0; shift ;;
-		-h|--help) sed -n '2,20p' "$0" 2>/dev/null || true; exit 0 ;;
+		--no-tray) tray=0; shift ;;
+		-h|--help) sed -n '2,25p' "$0" 2>/dev/null || true; exit 0 ;;
 		-*) echo "ERROR: unknown option $1" >&2; exit 2 ;;
 		*) if [ -z "$code" ]; then code="$1"; else echo "ERROR: one join code only (is it split across two words?)" >&2; exit 2; fi; shift ;;
 	esac
@@ -122,7 +126,47 @@ if [ "$service" -eq 1 ]; then
 	"$exe" --config "$cfg" service status || true
 fi
 
+# ---- 5. the tray icon (on by default; --no-tray skips it) --------------------------------------------------
+# Optional: any failure here (no tray in this release, a checksum that does not match) skips the icon and leaves the agent installed.
+tray_note=""
+if [ "$tray" -eq 1 ]; then
+	tasset="devnet-tray-$os-$arch"
+	texe="$dir/devnet-tray"
+	twant="$(awk -v a="$tasset" '{n=$2; sub(/^\*/,"",n); if (n==a) {print tolower($1); exit}}' "$tmp/SHA256SUMS")"
+	if [ -z "$twant" ]; then tray_note="No tray icon in this release for $os/$arch, so none was installed."
+	elif ! fetch "$base/$tasset" "$tmp/$tasset"; then tray_note="The tray icon could not be downloaded, so none was installed."
+	elif [ "$(sha "$tmp/$tasset" | tr 'A-Z' 'a-z')" != "$twant" ]; then tray_note="The tray icon's SHA256 does not match SHA256SUMS. It was NOT installed."
+	else
+		chmod +x "$tmp/$tasset"
+		pkill -f "$texe" >/dev/null 2>&1 || true
+		mv -f "$tmp/$tasset" "$texe"
+		if [ "$os" = darwin ]; then
+			plist="$HOME/Library/LaunchAgents/com.devnet.tray.plist"
+			mkdir -p "$HOME/Library/LaunchAgents"
+			cat >"$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.devnet.tray</string>
+<key>ProgramArguments</key><array><string>$texe</string><string>--config</string><string>$cfg</string></array>
+<key>RunAtLoad</key><true/>
+</dict></plist>
+EOF
+			launchctl unload "$plist" >/dev/null 2>&1 || true
+			launchctl load "$plist" >/dev/null 2>&1 || tray_note="The tray icon is installed but did not start; it will at your next login."
+			[ -n "$tray_note" ] || tray_note="Tray icon installed: it starts at login ($plist; delete that file to remove it)."
+		else
+			ad="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+			mkdir -p "$ad"
+			printf '[Desktop Entry]\nType=Application\nName=DevNet tray\nExec="%s" --config "%s"\nTerminal=false\nX-GNOME-Autostart-enabled=true\n' "$texe" "$cfg" >"$ad/devnet-tray.desktop"
+			if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then (nohup "$texe" --config "$cfg" >/dev/null 2>&1 &) ; fi
+			tray_note="Tray icon installed: it starts at login ($ad/devnet-tray.desktop; delete that file to remove it). A desktop with no tray (plain GNOME) needs the AppIndicator extension; $exe status works everywhere."
+		fi
+	fi
+fi
+
 echo
+[ -z "$tray_note" ] || echo "$tray_note"
 echo "Done. This machine is on the Board (Machines). It only reports in until you turn jobs on."
 echo "  Agent:  $exe"
 echo "  Config: $cfg   (private to you; it holds this machine's key)"

@@ -20,8 +20,9 @@
 # Options: -Dir <folder>   -Version <tag>   -Yes (do not ask before installing git)   -Force (replace an existing join)
 #          -NoService (join but do not install the logon task)   -Boot (start when the PC starts, before anyone logs on, for a
 #          PC that is on all the time with nobody at it: needs an administrator PowerShell, and also adds the firewall rule)
-#          -Tray (also install the little tray icon: green when idle, blue working, amber paused; Pause now / Pause after this job /
-#          Resume / Open the Board. For a PC that is also somebody's gaming PC. It starts at logon from your Startup folder.)
+#          -NoTray (do not install the tray icon. By default it is installed and starts at logon from your Startup folder: a dot that is
+#          green when all is well and shows a red X, a ! or a green tick when something wants you; Pause now / Pause after this job /
+#          Resume / Open the Board, usage, Game mode. -Tray is still accepted and means the default.)
 # Run from an administrator PowerShell the installer also adds a Windows Firewall rule for the agent (so a PC nobody sits at does
 # not leave the firewall's question unanswered, which would put the agent on a slower relay); otherwise it prints the one command.
 param(
@@ -32,7 +33,8 @@ param(
 	[switch]$Force,
 	[switch]$NoService,
 	[switch]$Boot,
-	[switch]$Tray
+	[switch]$Tray,     # the default now; kept so older commands still work
+	[switch]$NoTray
 )
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # the progress bar makes Invoke-WebRequest very slow in Windows PowerShell
@@ -121,7 +123,7 @@ if (-not $NoService) {
 }
 
 # ---- 5. the tray icon, if asked for ---------------------------------------------------------------------------
-if ($Tray) {
+if (-not $NoTray) {
 	$TrayAsset = 'devnet-tray-windows-amd64.exe'
 	$TrayExe = Join-Path $Dir 'devnet-tray.exe'
 	$TrayNew = Join-Path $Dir 'devnet-tray.exe.new'
