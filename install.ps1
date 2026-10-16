@@ -185,5 +185,6 @@ Write-Host 'Done. This machine is on the Board (Machines). It takes jobs within 
 Write-Host "  Agent:  $Exe"
 Write-Host "  Config: $Cfg   (private to you; it holds this machine's key)"
 Write-Host "  Log:    $(Join-Path $Dir 'agent.log')"
+Write-Host '  Orca:   off. A machine Orca is a Claude session that runs all day on your plan; turn it on with Machine Orca in the tray, or devnet-agent orca on.'
 Write-Host "  Stop:   & `"$Exe`" --config `"$Cfg`" stop"
 Write-Host "  Remove: & `"$Exe`" --config `"$Cfg`" service uninstall"
